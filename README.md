@@ -154,7 +154,7 @@ const { decision } = await attribution.signup({ userId: 'user-42', installId: 'i
 
 ## Verificação
 
-- `npm test` passa com 92 testes em 5 arquivos.
+- `npm test` passa com 94 testes em 5 arquivos.
 - `npm run typecheck` não mostra erros.
 - Teste de mutação: o Stryker gerou 346 mutantes e os testes falham em 339. Os outros 7 não mudam o comportamento. O teste rodou em uma cópia fora do repositório.
 - O exemplo de auditoria veio do servidor real, chamado com `curl`.

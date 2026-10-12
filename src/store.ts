@@ -16,6 +16,7 @@ export interface Store {
   ensureInstall(installId: string, at: number): Promise<Install>;
   /** Único por (installId, dedupeKey). Repetição só soma clickCount no toque já gravado. */
   recordTouch(touch: NewTouch): Promise<{ touch: Touch; created: boolean }>;
+  /** Em ordem crescente de seq, que é a ordem de recebimento. */
   listTouches(installId: string): Promise<Touch[]>;
   /** Único por userId. Se já existe decisão, devolve a existente. */
   saveDecision(decision: Decision): Promise<{ decision: Decision; created: boolean }>;

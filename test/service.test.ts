@@ -205,6 +205,24 @@ describe('auditoria', () => {
     ]);
   });
 
+  it('lista os toques em ordem de recebimento, com os posteriores ao cadastro no fim', async () => {
+    await attribution.touch({ installId: 'install-1', url: campaignUrl });
+    clock += HOUR;
+    await attribution.touch({ installId: 'install-1', url: referralUrl });
+    clock += HOUR;
+    await attribution.touch({ installId: 'install-1', url: campaignUrl });
+    await attribution.signup({ userId: 'user-1', installId: 'install-1' });
+    clock += HOUR;
+    await attribution.touch({ installId: 'install-1', url: forgedUrl });
+
+    const audit = await attribution.audit('user-1');
+    expect(audit?.touches.map((verdict) => [verdict.seq, verdict.reason])).toEqual([
+      [1, 'superseded_by_later_touch'],
+      [2, 'won'],
+      [3, 'rejected_link'],
+    ]);
+  });
+
   it('consultar não altera a decisão gravada', async () => {
     await attribution.touch({ installId: 'install-1', url: campaignUrl });
     const { decision } = await attribution.signup({ userId: 'user-1', installId: 'install-1' });

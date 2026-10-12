@@ -41,6 +41,20 @@ describe('MemoryStore', () => {
     expect([a.touch.seq, b.touch.seq, c.touch.seq]).toEqual([1, 2, 3]);
   });
 
+  it('lista os toques em ordem de seq, e clique repetido não muda a posição', async () => {
+    const store = new MemoryStore();
+    await store.recordTouch({ ...newTouch, dedupeKey: 'link-a' });
+    await store.recordTouch({ ...newTouch, installId: 'install-2' });
+    await store.recordTouch({ ...newTouch, dedupeKey: 'link-b' });
+    await store.recordTouch({ ...newTouch, dedupeKey: 'link-a' });
+
+    const listed = await store.listTouches('install-1');
+    expect(listed.map((touch) => [touch.seq, touch.dedupeKey])).toEqual([
+      [1, 'link-a'],
+      [3, 'link-b'],
+    ]);
+  });
+
   it('userId é único: a segunda decisão não substitui a primeira', async () => {
     const store = new MemoryStore();
     const first = await store.saveDecision(decisionFor('user-1', 1000));
