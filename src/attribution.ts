@@ -2,6 +2,8 @@ import type { LinkFields, LinkRejection } from './link.ts';
 
 export const RULE = 'last_touch_v1';
 export const DEFAULT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+/** Quanto tempo antes do primeiro abertura um clique ainda conta (clique, loja, instalar). */
+export const DEFAULT_PRE_INSTALL_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /** Um link aberto por uma instalação. Horários em epoch ms, relógio do servidor. */
 export interface Touch {
@@ -17,6 +19,8 @@ export interface Touch {
   /** Horário informado pelo aparelho. Só auditoria, nunca decide. */
   deviceAt: string | null;
   clickCount: number;
+  /** Clique feito antes do primeiro abertura e resgatado nele. receivedAt é o horário do clique. */
+  preInstall?: boolean;
 }
 
 export type TouchReason =
@@ -26,6 +30,7 @@ export type TouchReason =
   | 'rejected_link'
   | 'after_signup'
   | 'outside_window'
+  | 'pre_install_click_too_old'
   | 'window_expired_before_signup'
   | 'install_already_attributed';
 
@@ -46,6 +51,7 @@ export interface TouchVerdict {
   receivedAt: string;
   deviceAt: string | null;
   clickCount: number;
+  preInstall: boolean;
   outcome: 'won' | 'lost';
   reason: TouchReason;
   detail: string;
@@ -62,6 +68,8 @@ export interface Decision {
   signupAt: string;
   firstOpenAt: string | null;
   window: { durationMs: number; startsAt: string; endsAt: string } | null;
+  /** Janela do clique feito antes da instalação. Termina no primeiro abertura. */
+  preInstallWindow: { durationMs: number; startsAt: string; endsAt: string } | null;
   origin: Origin;
   touches: TouchVerdict[];
 }
@@ -72,6 +80,8 @@ export interface DecideInput {
   firstOpenAt: number | null;
   signupAt: number;
   windowMs: number;
+  /** Padrão: DEFAULT_PRE_INSTALL_WINDOW_MS. */
+  preInstallWindowMs?: number;
   touches: Touch[];
   /** A instalação já serviu de origem para outro cadastro. */
   installAlreadyAttributed?: boolean;
@@ -101,6 +111,8 @@ function detailOf(touch: Touch, reason: TouchReason, winner?: Touch): string {
       return 'Recebido depois do cadastro; não conta.';
     case 'outside_window':
       return 'Recebido fora da janela contada do primeiro abertura.';
+    case 'pre_install_click_too_old':
+      return 'Clique de antes da instalação, mais velho que a janela de pré-instalação.';
     case 'window_expired_before_signup':
       return 'Toque dentro da janela, mas o cadastro aconteceu depois do fim dela.';
     case 'install_already_attributed':
@@ -119,6 +131,7 @@ export function verdictOf(touch: Touch, reason: TouchReason, winner?: Touch): To
     receivedAt: iso(touch.receivedAt),
     deviceAt: touch.deviceAt,
     clickCount: touch.clickCount,
+    preInstall: touch.preInstall === true,
     outcome: reason === 'won' ? 'won' : 'lost',
     reason,
     detail: detailOf(touch, reason, winner),
@@ -141,17 +154,30 @@ export function decide(input: DecideInput): Decision {
   const organic = (reason: OrganicReason): Origin => ({ kind: 'organic', reason, detail: ORGANIC_DETAIL[reason] });
 
   if (installId === null || firstOpenAt === null) {
-    return { ...base, firstOpenAt: null, window: null, origin: organic('no_install'), touches: [] };
+    return {
+      ...base,
+      firstOpenAt: null,
+      window: null,
+      preInstallWindow: null,
+      origin: organic('no_install'),
+      touches: [],
+    };
   }
 
   const windowEndsAt = firstOpenAt + windowMs;
+  const preInstallWindowMs = input.preInstallWindowMs ?? DEFAULT_PRE_INSTALL_WINDOW_MS;
+  const preInstallStartsAt = firstOpenAt - preInstallWindowMs;
   const signupInWindow = signupAt <= windowEndsAt;
 
   const disqualification = (touch: Touch): TouchReason | null => {
     if (touch.rejection) return 'rejected_link';
     if (installAlreadyAttributed) return 'install_already_attributed';
     if (touch.receivedAt > signupAt) return 'after_signup';
-    if (touch.receivedAt < firstOpenAt || touch.receivedAt > windowEndsAt) return 'outside_window';
+    // Antes do primeiro abertura só conta o clique resgatado, e só dentro da janela dele.
+    const beforeFirstOpen = touch.receivedAt < firstOpenAt;
+    if (beforeFirstOpen && !touch.preInstall) return 'outside_window';
+    if (beforeFirstOpen && touch.receivedAt < preInstallStartsAt) return 'pre_install_click_too_old';
+    if (touch.receivedAt > windowEndsAt) return 'outside_window';
     if (!signupInWindow) return 'window_expired_before_signup';
     return null;
   };
@@ -186,6 +212,11 @@ export function decide(input: DecideInput): Decision {
     ...base,
     firstOpenAt: iso(firstOpenAt),
     window: { durationMs: windowMs, startsAt: iso(firstOpenAt), endsAt: iso(windowEndsAt) },
+    preInstallWindow: {
+      durationMs: preInstallWindowMs,
+      startsAt: iso(preInstallStartsAt),
+      endsAt: iso(firstOpenAt),
+    },
     origin,
     touches: verdicts,
   };
