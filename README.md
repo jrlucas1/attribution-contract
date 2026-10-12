@@ -165,4 +165,8 @@ O Claude Code (Claude Opus 5.5) escreveu o código, os testes e este README.
 
 Eu tomei as decisões de desenho antes do código: último toque vence, desempate por sequência, link assinado, clique repetido mantém o horário, relógio do servidor, janela de 7 dias, decisão imutável, link inválido gravado, persistência em memória, Fastify e Vitest.
 
-Ainda não revisei o código nem os testes linha por linha.
+Revisei à mão os trechos de maior risco: `decide` em `src/attribution.ts`, `parseLink` em `src/link.ts`, `signup` e `audit` em `src/service.ts`, `recordTouch` em `src/store.ts` e os schemas de `src/server.ts`. Questionei dez trechos. Cinco viraram mudanças de legibilidade. Os outros cinco ficaram como estavam, com justificativa: horários em epoch, ordem das desqualificações, função interna, passada única sobre os toques e posição da conferência de assinatura.
+
+Também pedi o teste de mutação, que mostrou os casos de teste que faltavam.
+
+Ainda não revisei os testes linha por linha.
