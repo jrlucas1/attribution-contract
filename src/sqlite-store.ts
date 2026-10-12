@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import type { Decision, Touch } from './attribution.ts';
-import type { Install, NewTouch, Store } from './store.ts';
+import type { Click, Install, NewTouch, Store } from './store.ts';
 
 // As unicidades do contrato do Store são chaves do banco. O que nunca muda
 // depois de gravado (primeiro abertura, decisão e dono da instalação) tem
@@ -25,6 +25,7 @@ const SCHEMA = `
     received_at INTEGER NOT NULL,
     device_at   TEXT,
     click_count INTEGER NOT NULL DEFAULT 1,
+    pre_install INTEGER NOT NULL DEFAULT 0,
     UNIQUE (install_id, dedupe_key)
   );
 
@@ -37,6 +38,14 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS install_claims (
     install_id TEXT PRIMARY KEY,
     user_id    TEXT NOT NULL
+  );
+
+  -- install_id fica vazio até o clique ser resgatado.
+  CREATE TABLE IF NOT EXISTS clicks (
+    click_id   TEXT PRIMARY KEY,
+    url        TEXT NOT NULL,
+    clicked_at INTEGER NOT NULL,
+    install_id TEXT
   );
 
   CREATE TRIGGER IF NOT EXISTS installs_no_update BEFORE UPDATE ON installs
@@ -69,6 +78,7 @@ interface TouchRow {
   received_at: number;
   device_at: string | null;
   click_count: number;
+  pre_install: number;
 }
 
 function toTouch(row: TouchRow): Touch {
@@ -82,6 +92,7 @@ function toTouch(row: TouchRow): Touch {
     receivedAt: row.received_at,
     deviceAt: row.device_at,
     clickCount: row.click_count,
+    ...(row.pre_install ? { preInstall: true } : {}),
   };
 }
 
@@ -137,8 +148,8 @@ export class SqliteStore implements Store {
 
       const inserted = this.db
         .prepare(
-          `INSERT INTO touches (install_id, dedupe_key, url, link, rejection, received_at, device_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO touches (install_id, dedupe_key, url, link, rejection, received_at, device_at, pre_install)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
            RETURNING *`,
         )
         .get(
@@ -149,6 +160,7 @@ export class SqliteStore implements Store {
           touch.rejection,
           touch.receivedAt,
           touch.deviceAt,
+          touch.preInstall ? 1 : 0,
         );
       return { touch: toTouch(inserted as unknown as TouchRow), created: true };
     });
@@ -182,6 +194,25 @@ export class SqliteStore implements Store {
       this.db.prepare('INSERT INTO install_claims (install_id, user_id) VALUES (?, ?)').run(installId, userId);
       return true;
     });
+  }
+
+  async saveClick(click: Click): Promise<void> {
+    this.db
+      .prepare('INSERT INTO clicks (click_id, url, clicked_at) VALUES (?, ?, ?)')
+      .run(click.clickId, click.url, click.clickedAt);
+  }
+
+  async redeemClick(clickId: string, installId: string): Promise<Click | undefined> {
+    // Um UPDATE só: quem acha o clique ainda sem instalação fica com ele.
+    const row = this.db
+      .prepare(
+        `UPDATE clicks SET install_id = ?
+         WHERE click_id = ? AND install_id IS NULL
+         RETURNING url, clicked_at`,
+      )
+      .get(installId, clickId);
+    if (!row) return undefined;
+    return { clickId, url: row.url as string, clickedAt: row.clicked_at as number };
   }
 
   private readDecision(userId: string): Decision | undefined {

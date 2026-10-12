@@ -7,6 +7,13 @@ export interface Install {
 
 export type NewTouch = Omit<Touch, 'seq' | 'clickCount'>;
 
+/** Link clicado antes da instalação, guardado até o app abrir pela primeira vez. */
+export interface Click {
+  clickId: string;
+  url: string;
+  clickedAt: number;
+}
+
 /**
  * Cada método é uma operação atômica. Num banco real, as unicidades abaixo
  * viram constraints UNIQUE e a sequência vira uma coluna de identidade.
@@ -26,6 +33,12 @@ export interface Store {
    * resposta diz se ela é de quem chamou. Repetir a chamada dá a mesma resposta.
    */
   claimInstall(installId: string, userId: string): Promise<boolean>;
+  saveClick(click: Click): Promise<void>;
+  /**
+   * Cada clique é resgatado uma vez, por uma instalação. Só a primeira chamada
+   * devolve o clique; as seguintes, de qualquer instalação, devolvem undefined.
+   */
+  redeemClick(clickId: string, installId: string): Promise<Click | undefined>;
 }
 
 export class MemoryStore implements Store {
@@ -34,6 +47,8 @@ export class MemoryStore implements Store {
   private touches = new Map<string, Map<string, Touch>>();
   private decisions = new Map<string, Decision>();
   private claims = new Map<string, string>();
+  private clicks = new Map<string, Click>();
+  private redeemed = new Set<string>();
 
   async ensureInstall(installId: string, at: number): Promise<Install> {
     let install = this.installs.get(installId);
@@ -80,5 +95,16 @@ export class MemoryStore implements Store {
   async claimInstall(installId: string, userId: string): Promise<boolean> {
     if (!this.claims.has(installId)) this.claims.set(installId, userId);
     return this.claims.get(installId) === userId;
+  }
+
+  async saveClick(click: Click): Promise<void> {
+    this.clicks.set(click.clickId, { ...click });
+  }
+
+  async redeemClick(clickId: string, _installId: string): Promise<Click | undefined> {
+    const click = this.clicks.get(clickId);
+    if (!click || this.redeemed.has(clickId)) return undefined;
+    this.redeemed.add(clickId);
+    return { ...click };
   }
 }

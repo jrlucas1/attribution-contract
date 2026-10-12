@@ -14,7 +14,14 @@ if (!Number.isFinite(windowDays) || windowDays <= 0) {
   process.exit(1);
 }
 
+const preInstallHours = Number(process.env.ATTRIBUTION_PRE_INSTALL_WINDOW_HOURS ?? 24);
+if (!Number.isFinite(preInstallHours) || preInstallHours <= 0) {
+  console.error('ATTRIBUTION_PRE_INSTALL_WINDOW_HOURS precisa ser um número positivo.');
+  process.exit(1);
+}
+
 const attribution = createAttribution({
+  preInstallWindowMs: preInstallHours * 60 * 60 * 1000,
   store: new SqliteStore(process.env.ATTRIBUTION_DB_PATH ?? 'attribution.db'),
   secret,
   windowMs: windowDays * 24 * 60 * 60 * 1000,
