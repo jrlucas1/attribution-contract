@@ -13,7 +13,7 @@ const touchBody = {
     url: { type: 'string', minLength: 1, maxLength: 2048 },
     deviceAt: { type: 'string', format: 'date-time' },
   },
-} as const;
+};
 
 const signupBody = {
   type: 'object',
@@ -23,7 +23,7 @@ const signupBody = {
     userId: { type: 'string', minLength: 1, maxLength: 128 },
     installId: { type: 'string', minLength: 1, maxLength: MAX_INSTALL_ID_LENGTH },
   },
-} as const;
+};
 
 export function buildServer(attribution: Attribution): FastifyInstance {
   const app = Fastify();

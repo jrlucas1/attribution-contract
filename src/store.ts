@@ -49,7 +49,8 @@ export class MemoryStore implements Store {
       existing.clickCount += 1;
       return { touch: { ...existing }, created: false };
     }
-    const touch: Touch = { ...newTouch, seq: ++this.seq, clickCount: 1 };
+    this.seq += 1;
+    const touch: Touch = { ...newTouch, seq: this.seq, clickCount: 1 };
     ofInstall.set(touch.dedupeKey, touch);
     return { touch: { ...touch }, created: true };
   }

@@ -53,8 +53,15 @@ export function createAttribution(options: AttributionOptions): Attribution {
 
       const signupAt = now();
       if (!installId) {
-        const decision = decide({ userId, installId: null, firstOpenAt: null, signupAt, windowMs, touches: [] });
-        return store.saveDecision(decision);
+        const organicDecision = decide({
+          userId,
+          installId: null,
+          firstOpenAt: null,
+          signupAt,
+          windowMs,
+          touches: [],
+        });
+        return store.saveDecision(organicDecision);
       }
 
       const install = await store.ensureInstall(installId, signupAt);
@@ -76,10 +83,12 @@ export function createAttribution(options: AttributionOptions): Attribution {
       if (!decision || decision.installId === null) return decision;
 
       const judged = new Set(decision.touches.map((verdict) => verdict.seq));
-      const later = (await store.listTouches(decision.installId))
-        .filter((touch) => !judged.has(touch.seq))
-        .map((touch) => verdictOf(touch, touch.rejection ? 'rejected_link' : 'after_signup'));
-      return { ...decision, touches: [...decision.touches, ...later] };
+      const allTouches = await store.listTouches(decision.installId);
+      const arrivedAfterDecision = allTouches.filter((touch) => !judged.has(touch.seq));
+      const laterVerdicts = arrivedAfterDecision.map((touch) =>
+        verdictOf(touch, touch.rejection ? 'rejected_link' : 'after_signup'),
+      );
+      return { ...decision, touches: [...decision.touches, ...laterVerdicts] };
     },
   };
 }

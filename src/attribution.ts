@@ -136,7 +136,7 @@ function isLater(a: Touch, b: Touch): boolean {
  * toques elegíveis vence o mais recente; em horário igual, o de maior seq.
  */
 export function decide(input: DecideInput): Decision {
-  const { userId, installId, firstOpenAt, signupAt, windowMs, touches } = input;
+  const { userId, installId, firstOpenAt, signupAt, windowMs, touches, installAlreadyAttributed } = input;
   const base = { userId, installId, rule: RULE, signupAt: iso(signupAt) } as const;
   const organic = (reason: OrganicReason): Origin => ({ kind: 'organic', reason, detail: ORGANIC_DETAIL[reason] });
 
@@ -149,7 +149,7 @@ export function decide(input: DecideInput): Decision {
 
   const disqualification = (touch: Touch): TouchReason | null => {
     if (touch.rejection) return 'rejected_link';
-    if (input.installAlreadyAttributed) return 'install_already_attributed';
+    if (installAlreadyAttributed) return 'install_already_attributed';
     if (touch.receivedAt > signupAt) return 'after_signup';
     if (touch.receivedAt < firstOpenAt || touch.receivedAt > windowEndsAt) return 'outside_window';
     if (!signupInWindow) return 'window_expired_before_signup';
@@ -174,7 +174,7 @@ export function decide(input: DecideInput): Decision {
   if (winner?.link) {
     const { type, id, channel, linkId } = winner.link;
     origin = { kind: type, id, channel: channel ?? null, linkId, touchSeq: winner.seq };
-  } else if (input.installAlreadyAttributed) {
+  } else if (installAlreadyAttributed) {
     origin = organic('install_already_attributed');
   } else if (touches.length === 0) {
     origin = organic('no_touches');
