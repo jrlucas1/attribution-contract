@@ -65,6 +65,8 @@ export function createAttribution(options: AttributionOptions): Attribution {
       }
 
       const install = await store.ensureInstall(installId, signupAt);
+      // Dois cadastros simultâneos da mesma instalação disputam aqui: só um fica com ela.
+      const installIsMine = await store.claimInstall(installId, userId);
       const decision = decide({
         userId,
         installId,
@@ -72,7 +74,7 @@ export function createAttribution(options: AttributionOptions): Attribution {
         signupAt,
         windowMs,
         touches: await store.listTouches(installId),
-        installAlreadyAttributed: (await store.findDecisionByInstall(installId)) !== undefined,
+        installAlreadyAttributed: !installIsMine,
       });
       return store.saveDecision(decision);
     },

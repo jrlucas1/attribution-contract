@@ -8,7 +8,7 @@ export interface Install {
 export type NewTouch = Omit<Touch, 'seq' | 'clickCount'>;
 
 /**
- * Cada método é uma operação atômica. Num banco real, as três unicidades abaixo
+ * Cada método é uma operação atômica. Num banco real, as unicidades abaixo
  * viram constraints UNIQUE e a sequência vira uma coluna de identidade.
  */
 export interface Store {
@@ -21,7 +21,11 @@ export interface Store {
   /** Único por userId. Se já existe decisão, devolve a existente. */
   saveDecision(decision: Decision): Promise<{ decision: Decision; created: boolean }>;
   findDecision(userId: string): Promise<Decision | undefined>;
-  findDecisionByInstall(installId: string): Promise<Decision | undefined>;
+  /**
+   * Único por installId. O primeiro usuário a chamar fica com a instalação; a
+   * resposta diz se ela é de quem chamou. Repetir a chamada dá a mesma resposta.
+   */
+  claimInstall(installId: string, userId: string): Promise<boolean>;
 }
 
 export class MemoryStore implements Store {
@@ -29,6 +33,7 @@ export class MemoryStore implements Store {
   private installs = new Map<string, Install>();
   private touches = new Map<string, Map<string, Touch>>();
   private decisions = new Map<string, Decision>();
+  private claims = new Map<string, string>();
 
   async ensureInstall(installId: string, at: number): Promise<Install> {
     let install = this.installs.get(installId);
@@ -72,10 +77,8 @@ export class MemoryStore implements Store {
     return this.decisions.get(userId);
   }
 
-  async findDecisionByInstall(installId: string): Promise<Decision | undefined> {
-    for (const decision of this.decisions.values()) {
-      if (decision.installId === installId) return decision;
-    }
-    return undefined;
+  async claimInstall(installId: string, userId: string): Promise<boolean> {
+    if (!this.claims.has(installId)) this.claims.set(installId, userId);
+    return this.claims.get(installId) === userId;
   }
 }
