@@ -38,6 +38,13 @@ describe('POST /installs/:installId/first-open', () => {
     });
     expect(again.json()).toEqual(first.json());
   });
+
+  it('installId de 100 caracteres passa e de 101 não', async () => {
+    const atLimit = await post(`/installs/${'x'.repeat(100)}/first-open`);
+    const overLimit = await post(`/installs/${'x'.repeat(101)}/first-open`);
+    expect(atLimit.statusCode).toBe(200);
+    expect(overLimit.statusCode).toBe(414);
+  });
 });
 
 describe('POST /installs/:installId/touches', () => {
@@ -126,6 +133,13 @@ describe('POST /signups e GET /signups/:userId/attribution', () => {
     expect(response.json().origin).toMatchObject({ kind: 'organic', reason: 'no_install' });
   });
 
+  it('400 no cadastro com installId de 101 caracteres, que nenhuma rota de instalação aceita', async () => {
+    const atLimit = await post('/signups', { userId: 'user-1', installId: 'x'.repeat(100) });
+    const overLimit = await post('/signups', { userId: 'user-2', installId: 'x'.repeat(101) });
+    expect(atLimit.statusCode).toBe(201);
+    expect(overLimit.statusCode).toBe(400);
+  });
+
   it('400 no cadastro sem userId', async () => {
     const response = await post('/signups', { installId: 'install-1' });
     expect(response.statusCode).toBe(400);
@@ -134,5 +148,6 @@ describe('POST /signups e GET /signups/:userId/attribution', () => {
   it('404 na auditoria de quem não se cadastrou', async () => {
     const response = await app.inject({ method: 'GET', url: '/signups/ninguem/attribution' });
     expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({ error: 'signup_not_found' });
   });
 });

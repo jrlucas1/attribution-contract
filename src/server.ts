@@ -2,11 +2,8 @@ import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import type { Attribution } from './service.ts';
 
-const installParams = {
-  type: 'object',
-  required: ['installId'],
-  properties: { installId: { type: 'string', minLength: 1, maxLength: 128 } },
-} as const;
+// O roteador do Fastify já recusa parâmetro de rota com mais de 100 caracteres.
+const MAX_INSTALL_ID_LENGTH = 100;
 
 const touchBody = {
   type: 'object',
@@ -24,30 +21,26 @@ const signupBody = {
   additionalProperties: false,
   properties: {
     userId: { type: 'string', minLength: 1, maxLength: 128 },
-    installId: { type: 'string', minLength: 1, maxLength: 128 },
+    installId: { type: 'string', minLength: 1, maxLength: MAX_INSTALL_ID_LENGTH },
   },
 } as const;
 
 export function buildServer(attribution: Attribution): FastifyInstance {
   const app = Fastify();
 
-  app.post<{ Params: { installId: string } }>(
-    '/installs/:installId/first-open',
-    { schema: { params: installParams } },
-    async (request) => {
-      const install = await attribution.firstOpen(request.params.installId);
-      return {
-        installId: install.installId,
-        firstOpenAt: new Date(install.firstOpenAt).toISOString(),
-        windowEndsAt: new Date(install.firstOpenAt + attribution.windowMs).toISOString(),
-      };
-    },
-  );
+  app.post<{ Params: { installId: string } }>('/installs/:installId/first-open', async (request) => {
+    const install = await attribution.firstOpen(request.params.installId);
+    return {
+      installId: install.installId,
+      firstOpenAt: new Date(install.firstOpenAt).toISOString(),
+      windowEndsAt: new Date(install.firstOpenAt + attribution.windowMs).toISOString(),
+    };
+  });
 
   // 201 toque novo, 200 clique repetido, 422 link rejeitado (gravado mesmo assim).
   app.post<{ Params: { installId: string }; Body: { url: string; deviceAt?: string } }>(
     '/installs/:installId/touches',
-    { schema: { params: installParams, body: touchBody } },
+    { schema: { body: touchBody } },
     async (request, reply) => {
       const { touch, created } = await attribution.touch({ installId: request.params.installId, ...request.body });
       const status = touch.rejection ? 422 : created ? 201 : 200;
