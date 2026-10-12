@@ -45,17 +45,17 @@ A chave destes exemplos é `segredo-de-exemplo`. A assinatura impede a troca man
 
 O link é igual para todas as pessoas. Por isso, "o mesmo clique" é o par instalação e link.
 
-### 2. Primeiro abertura
+### 2. Primeira abertura
 
 O app gera um `installId` de até 100 caracteres na primeira execução e o guarda no aparelho.
 
 | Chamada | Quando | Resposta |
 | --- | --- | --- |
 | `POST /clicks` com `{ "url" }` | No clique, antes de instalar. | `clickId` e até quando ele vale. |
-| `POST /installs/:installId/first-open` com `{ "clickId"? }` | Na primeira execução. | Primeiro abertura e fim da janela. Com `clickId`, se o clique foi resgatado. |
+| `POST /installs/:installId/first-open` com `{ "clickId"? }` | Na primeira execução. | Primeira abertura e fim da janela. Com `clickId`, se o clique foi resgatado. |
 | `POST /installs/:installId/touches` com `{ "url", "deviceAt"? }` | Sempre que um link abre o app. | `201` toque novo, `200` clique repetido, `422` link rejeitado. |
 
-O primeiro abertura é o primeiro contato da instalação com o servidor, em qualquer rota. Ele nunca muda.
+A primeira abertura é o primeiro contato da instalação com o servidor, em qualquer rota. Ela nunca muda.
 
 O relógio do servidor, em UTC, define todos os horários. `deviceAt` serve só para auditoria.
 
@@ -69,9 +69,9 @@ O servidor grava o link rejeitado com o motivo. Um toque rejeitado nunca vence.
 
 ## Regra (`last_touch_v1`)
 
-A janela é `[primeiro abertura, primeiro abertura + 7 dias]`, com limites inclusivos. O horário do clique não altera a janela.
+A janela é `[primeira abertura, primeira abertura + 7 dias]`, com limites inclusivos. O horário do clique não altera a janela.
 
-Um toque é elegível quando o link é válido, o toque chegou dentro da janela e até o cadastro, e o cadastro aconteceu dentro da janela. O clique resgatado no primeiro abertura tem janela própria: ele é elegível se aconteceu até 24 horas antes do primeiro abertura, com limite inclusivo. A decisão grava essa janela em `preInstallWindow`.
+Um toque é elegível quando o link é válido, o toque chegou dentro da janela e até o cadastro, e o cadastro aconteceu dentro da janela. O clique resgatado na primeira abertura tem janela própria: ele é elegível se aconteceu até 24 horas antes da primeira abertura, com limite inclusivo. A decisão grava essa janela em `preInstallWindow`.
 
 O toque elegível mais recente vence. Em horário igual, vence o maior `seq` (ordem de recebimento no servidor).
 
@@ -151,7 +151,7 @@ const { decision } = await attribution.signup({ userId: 'user-42', installId: 'i
 - Rotação da chave HMAC.
 - Autenticação das rotas e limite de requisições.
 - Reinstalação. Um `installId` novo tem janela nova.
-- O redirect que chama `POST /clicks` e a entrega do `clickId` ao app pela loja. O serviço guarda o clique e o resgata no primeiro abertura; sem `clickId`, o cadastro de quem clicou e depois instalou fica orgânico (`no_touches`). O webview sem referrer não afeta o caso em que o app já está instalado.
+- O redirect que chama `POST /clicks` e a entrega do `clickId` ao app pela loja. O serviço guarda o clique e o resgata na primeira abertura; sem `clickId`, o cadastro de quem clicou e depois instalou fica orgânico (`no_touches`). O webview sem referrer não afeta o caso em que o app já está instalado.
 
 ## Verificação
 
@@ -164,7 +164,7 @@ const { decision } = await attribution.signup({ userId: 'user-42', installId: 'i
 
 O Claude Code (Claude Opus 5.5) escreveu o código, os testes e este README.
 
-Eu tomei as decisões de desenho antes do código: último toque vence, desempate por sequência, link assinado, clique repetido mantém o horário, relógio do servidor, janela de 7 dias, decisão imutável, link inválido gravado, persistência em memória, Fastify e Vitest.
+Eu tomei as decisões de desenho antes do código: último toque vence, desempate por sequência, link assinado, clique repetido mantém o horário, relógio do servidor, janela de 7 dias, decisão imutável, link inválido gravado, Fastify e Vitest.
 
 Revisei à mão os trechos de maior risco: `decide` em `src/attribution.ts`, `parseLink` em `src/link.ts`, `signup` e `audit` em `src/service.ts`, `recordTouch` em `src/store.ts` e os schemas de `src/server.ts`. Questionei dez trechos. Cinco viraram mudanças de legibilidade. Os outros cinco ficaram como estavam, com justificativa: horários em epoch, ordem das desqualificações, função interna, passada única sobre os toques e posição da conferência de assinatura.
 
