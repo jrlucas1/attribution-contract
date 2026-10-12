@@ -107,6 +107,13 @@ describe('link inválido', () => {
     expect(decision.touches).toMatchObject([{ url: forgedUrl, reason: 'rejected_link' }]);
   });
 
+  it('dois links inválidos diferentes são dois toques', async () => {
+    const one = await attribution.touch({ installId: 'install-1', url: forgedUrl });
+    const other = await attribution.touch({ installId: 'install-1', url: 'isso não é um link' });
+    expect(other.created).toBe(true);
+    expect(other.touch.seq).not.toBe(one.touch.seq);
+  });
+
   it('o mesmo link inválido repetido não duplica', async () => {
     await attribution.touch({ installId: 'install-1', url: forgedUrl });
     const again = await attribution.touch({ installId: 'install-1', url: forgedUrl });
@@ -118,6 +125,17 @@ describe('cadastro', () => {
   it('sem instalação fica orgânico com motivo', async () => {
     const { decision } = await attribution.signup({ userId: 'user-1' });
     expect(decision.origin).toMatchObject({ kind: 'organic', reason: 'no_install' });
+    expect(decision.touches).toEqual([]);
+  });
+
+  it('de usuários diferentes em instalações diferentes dá uma origem para cada', async () => {
+    await attribution.touch({ installId: 'install-1', url: campaignUrl });
+    await attribution.touch({ installId: 'install-2', url: referralUrl });
+
+    const first = await attribution.signup({ userId: 'user-1', installId: 'install-1' });
+    const second = await attribution.signup({ userId: 'user-2', installId: 'install-2' });
+    expect(first.decision.origin).toMatchObject({ kind: 'campaign' });
+    expect(second.decision.origin).toMatchObject({ kind: 'referral' });
   });
 
   it('de instalação que nunca abriu link fica orgânico com motivo', async () => {

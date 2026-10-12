@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_WINDOW_MS, decide } from '../src/attribution.ts';
+import { DEFAULT_WINDOW_MS, decide, verdictOf } from '../src/attribution.ts';
 import type { DecideInput, Touch } from '../src/attribution.ts';
 import { linkIdOf } from '../src/link.ts';
 import type { LinkFields } from '../src/link.ts';
@@ -175,17 +175,82 @@ describe('toques que nunca vencem', () => {
   });
 });
 
+describe('o que cada toque registra', () => {
+  it('toque de link válido leva os campos do link', () => {
+    const decision = decide(input({ touches: [touch(1, campaign, FIRST_OPEN)] }));
+    expect(decision.touches[0]).toMatchObject({
+      linkId: linkIdOf(campaign),
+      type: 'campaign',
+      id: 'creators-out26',
+      channel: 'instagram',
+    });
+  });
+
+  it('toque rejeitado não leva campos de link', () => {
+    const decision = decide(input({ touches: [rejected(1, FIRST_OPEN)] }));
+    expect(decision.touches[0]).toMatchObject({ linkId: null, type: null, id: null, channel: null });
+  });
+
+  const winner = touch(2, campaign, FIRST_OPEN);
+  it.each([
+    ['won', 'Último toque elegível dentro da janela.'],
+    ['superseded_by_later_touch', 'Havia um toque elegível mais recente (seq 2).'],
+    ['lost_tie_by_sequence', 'Mesmo horário do vencedor; vence a maior sequência de recebimento (seq 2).'],
+    ['rejected_link', 'Link rejeitado (invalid_signature); nunca concorre.'],
+    ['after_signup', 'Recebido depois do cadastro; não conta.'],
+    ['outside_window', 'Recebido fora da janela contada do primeiro abertura.'],
+    ['window_expired_before_signup', 'Toque dentro da janela, mas o cadastro aconteceu depois do fim dela.'],
+    ['install_already_attributed', 'A instalação já foi usada na atribuição de outro cadastro.'],
+  ] as const)('o motivo %s vem com a explicação', (reason, detail) => {
+    expect(verdictOf(rejected(1, FIRST_OPEN), reason, winner).detail).toBe(detail);
+  });
+});
+
 describe('orgânico sempre com motivo', () => {
   it('sem instalação', () => {
     const decision = decide(input({ installId: null, firstOpenAt: null }));
     expect(decision.origin).toMatchObject({ kind: 'organic', reason: 'no_install' });
     expect(decision.window).toBeNull();
+    expect(decision.touches).toEqual([]);
+  });
+
+  it('sem instalação mesmo que venha um primeiro abertura ou toques', () => {
+    const decision = decide(input({ installId: null, touches: [touch(1, campaign, FIRST_OPEN)] }));
+    expect(decision.origin).toMatchObject({ kind: 'organic', reason: 'no_install' });
+    expect(decision.touches).toEqual([]);
+  });
+
+  it('instalação sem primeiro abertura conhecido', () => {
+    const decision = decide(input({ firstOpenAt: null }));
+    expect(decision.origin).toMatchObject({ kind: 'organic', reason: 'no_install' });
   });
 
   it('sem nenhum toque', () => {
     const decision = decide(input({}));
     expect(decision.origin).toMatchObject({ kind: 'organic', reason: 'no_touches' });
     expect(decision.origin).toHaveProperty('detail');
+  });
+
+  it.each<[string, Partial<DecideInput>, string]>([
+    ['no_install', { installId: null }, 'Cadastro sem instalação associada; não há como ligar a um link.'],
+    ['no_touches', {}, 'Nenhum link foi aberto por esta instalação antes do cadastro.'],
+    [
+      'no_eligible_touch',
+      { touches: [rejected(1, FIRST_OPEN)] },
+      'Havia toques, mas nenhum elegível (ver o motivo de cada um).',
+    ],
+    [
+      'window_expired',
+      { signupAt: WINDOW_END + 1, touches: [touch(1, campaign, FIRST_OPEN)] },
+      'O cadastro aconteceu depois do fim da janela contada do primeiro abertura.',
+    ],
+    [
+      'install_already_attributed',
+      { installAlreadyAttributed: true },
+      'A instalação já foi usada na atribuição de outro cadastro.',
+    ],
+  ])('o motivo %s vem com a explicação', (reason, overrides, detail) => {
+    expect(decide(input(overrides)).origin).toEqual({ kind: 'organic', reason, detail });
   });
 
   it('só com toques rejeitados', () => {

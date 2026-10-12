@@ -51,6 +51,11 @@ describe('parseLink', () => {
     expect(parseLink(forged, SECRET)).toEqual({ ok: false, rejection: 'invalid_signature' });
   });
 
+  it('rejeita assinatura de outro tamanho sem lançar erro', () => {
+    const url = 'https://conty.app/l?v=1&t=referral&id=ana-7f3k&sig=curta';
+    expect(parseLink(url, SECRET)).toEqual({ ok: false, rejection: 'invalid_signature' });
+  });
+
   it('rejeita link assinado com outra chave', () => {
     expect(parseLink(buildLink(campaign, 'outra-chave'), SECRET)).toEqual({
       ok: false,
@@ -60,6 +65,8 @@ describe('parseLink', () => {
 
   it.each([
     ['texto que não é URL', 'isso não é um link'],
+    ['sem versão', 'https://conty.app/l?t=referral&id=ana-7f3k&sig=abc'],
+    ['sem tipo', 'https://conty.app/l?v=1&id=ana-7f3k&sig=abc'],
     ['sem assinatura', 'https://conty.app/l?v=1&t=referral&id=ana-7f3k'],
     ['sem id', 'https://conty.app/l?v=1&t=referral&sig=abc'],
     ['id vazio', 'https://conty.app/l?v=1&t=referral&id=&sig=abc'],
@@ -79,6 +86,10 @@ describe('parseLink', () => {
 });
 
 describe('linkIdOf', () => {
+  it('tem 16 caracteres hexadecimais', () => {
+    expect(linkIdOf(campaign)).toMatch(/^[0-9a-f]{16}$/);
+  });
+
   it('é estável para os mesmos campos e muda com qualquer campo', () => {
     expect(linkIdOf({ ...campaign })).toBe(linkIdOf(campaign));
     expect(linkIdOf({ ...campaign, channel: 'tiktok' })).not.toBe(linkIdOf(campaign));
