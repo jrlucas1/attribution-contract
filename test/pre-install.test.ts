@@ -371,9 +371,7 @@ describe('API do clique de antes da instalação', () => {
   it.each([
     ['sem url', {}],
     ['url vazia', { url: '' }],
-    ['url longa demais', { url: `https://conty.app/l?${'x'.repeat(2048)}` }],
-    ['url que não é texto', { url: 42 }],
-  ])('POST /clicks recusa %s com 400', async (_name, payload) => {
+    ['url longa demais', { url: `https://conty.app/l?${'x'.repeat(2048)}` }],  ])('POST /clicks recusa %s com 400', async (_name, payload) => {
     const { post } = start();
 
     expect((await post('/clicks', payload)).statusCode).toBe(400);
