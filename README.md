@@ -15,7 +15,7 @@ npm run typecheck
 ATTRIBUTION_LINK_SECRET=segredo-de-exemplo npm start
 ```
 
-`ATTRIBUTION_WINDOW_DAYS` define a janela (padrão 7). `PORT` define a porta (padrão 3000).
+`ATTRIBUTION_WINDOW_DAYS` define a janela (padrão 7). `ATTRIBUTION_PRE_INSTALL_WINDOW_HOURS` define a janela do clique feito antes da instalação (padrão 24). `ATTRIBUTION_DB_PATH` define o arquivo SQLite (padrão `attribution.db`). `PORT` define a porta (padrão 3000).
 
 ## Contrato
 
@@ -51,7 +51,8 @@ O app gera um `installId` de até 100 caracteres na primeira execução e o guar
 
 | Chamada | Quando | Resposta |
 | --- | --- | --- |
-| `POST /installs/:installId/first-open` | Na primeira execução. | Primeiro abertura e fim da janela. |
+| `POST /clicks` com `{ "url" }` | No clique, antes de instalar. | `clickId` e até quando ele vale. |
+| `POST /installs/:installId/first-open` com `{ "clickId"? }` | Na primeira execução. | Primeiro abertura e fim da janela. Com `clickId`, se o clique foi resgatado. |
 | `POST /installs/:installId/touches` com `{ "url", "deviceAt"? }` | Sempre que um link abre o app. | `201` toque novo, `200` clique repetido, `422` link rejeitado. |
 
 O primeiro abertura é o primeiro contato da instalação com o servidor, em qualquer rota. Ele nunca muda.
@@ -70,7 +71,7 @@ O servidor grava o link rejeitado com o motivo. Um toque rejeitado nunca vence.
 
 A janela é `[primeiro abertura, primeiro abertura + 7 dias]`, com limites inclusivos. O horário do clique não altera a janela.
 
-Um toque é elegível quando o link é válido, o toque chegou dentro da janela e até o cadastro, e o cadastro aconteceu dentro da janela.
+Um toque é elegível quando o link é válido, o toque chegou dentro da janela e até o cadastro, e o cadastro aconteceu dentro da janela. O clique resgatado no primeiro abertura tem janela própria: ele é elegível se aconteceu até 24 horas antes do primeiro abertura, com limite inclusivo. A decisão grava essa janela em `preInstallWindow`.
 
 O toque elegível mais recente vence. Em horário igual, vence o maior `seq` (ordem de recebimento no servidor).
 
@@ -84,6 +85,7 @@ Um clique repetido só aumenta `clickCount` e mantém o primeiro horário. Na se
 | `rejected_link` | Link inválido. |
 | `after_signup` | Chegou depois do cadastro. |
 | `outside_window` | Chegou fora da janela. |
+| `pre_install_click_too_old` | Clique de antes da instalação, mais velho que a janela dele. |
 | `window_expired_before_signup` | Toque na janela, cadastro depois do fim dela. |
 | `install_already_attributed` | A instalação já deu origem a outro cadastro. |
 
@@ -99,7 +101,7 @@ Um cadastro sem origem recebe `origin.kind = "organic"` e um destes motivos:
 
 ## Exemplo de auditoria
 
-Resposta real de `GET /signups/user-42/attribution`. A instalação abriu um link de campanha, um de indicação e um adulterado. Depois do cadastro, abriu outro link inválido. Cada toque também tem `url`, `linkId`, `channel`, `deviceAt` e `clickCount`, omitidos aqui.
+Resposta real de `GET /signups/user-42/attribution`. A instalação abriu um link de campanha, um de indicação e um adulterado. Depois do cadastro, abriu outro link inválido. Cada toque também tem `url`, `linkId`, `channel`, `deviceAt`, `clickCount` e `preInstall`, e a decisão tem `preInstallWindow`, omitidos aqui.
 
 ```json
 {
@@ -146,15 +148,14 @@ const { decision } = await attribution.signup({ userId: 'user-42', installId: 'i
 
 ## Fora do escopo
 
-- Banco de dados. O `MemoryStore` perde os dados quando o processo reinicia. [src/store.ts](src/store.ts) lista as unicidades que um banco precisa.
 - Rotação da chave HMAC.
 - Autenticação das rotas e limite de requisições.
 - Reinstalação. Um `installId` novo tem janela nova.
-- Instalação depois do clique. O app só envia o link que o abriu. Se a pessoa clica, instala pela loja e depois abre o app, o link não chega ao app e o cadastro fica orgânico (`no_touches`). Esse caso exige um link adiado, da loja ou de um redirect próprio que guarde o clique. O webview sem referrer não afeta o caso em que o app já está instalado.
+- O redirect que chama `POST /clicks` e a entrega do `clickId` ao app pela loja. O serviço guarda o clique e o resgata no primeiro abertura; sem `clickId`, o cadastro de quem clicou e depois instalou fica orgânico (`no_touches`). O webview sem referrer não afeta o caso em que o app já está instalado.
 
 ## Verificação
 
-- `npm test` passa com 94 testes em 5 arquivos.
+- `npm test` passa com 174 testes em 9 arquivos.
 - `npm run typecheck` não mostra erros.
 - Teste de mutação: o Stryker gerou 346 mutantes e os testes falham em 339. Os outros 7 não mudam o comportamento. O teste rodou em uma cópia fora do repositório. Ele rodou antes dos últimos ajustes de legibilidade e dos dois testes de ordenação.
 - O exemplo de auditoria veio do servidor real, chamado com `curl`.
