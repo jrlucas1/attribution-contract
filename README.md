@@ -150,13 +150,13 @@ const { decision } = await attribution.signup({ userId: 'user-42', installId: 'i
 - Rotação da chave HMAC.
 - Autenticação das rotas e limite de requisições.
 - Reinstalação. Um `installId` novo tem janela nova.
-- Encurtador ou redirect de link.
+- Instalação depois do clique. O app só envia o link que o abriu. Se a pessoa clica, instala pela loja e depois abre o app, o link não chega ao app e o cadastro fica orgânico (`no_touches`). Esse caso exige um link adiado, da loja ou de um redirect próprio que guarde o clique. O webview sem referrer não afeta o caso em que o app já está instalado.
 
 ## Verificação
 
 - `npm test` passa com 94 testes em 5 arquivos.
 - `npm run typecheck` não mostra erros.
-- Teste de mutação: o Stryker gerou 346 mutantes e os testes falham em 339. Os outros 7 não mudam o comportamento. O teste rodou em uma cópia fora do repositório.
+- Teste de mutação: o Stryker gerou 346 mutantes e os testes falham em 339. Os outros 7 não mudam o comportamento. O teste rodou em uma cópia fora do repositório. Ele rodou antes dos últimos ajustes de legibilidade e dos dois testes de ordenação.
 - O exemplo de auditoria veio do servidor real, chamado com `curl`.
 
 ## Uso de IA
