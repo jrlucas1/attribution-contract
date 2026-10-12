@@ -1,6 +1,6 @@
 import { buildServer } from './server.ts';
 import { createAttribution } from './service.ts';
-import { MemoryStore } from './store.ts';
+import { SqliteStore } from './sqlite-store.ts';
 
 const secret = process.env.ATTRIBUTION_LINK_SECRET;
 if (!secret) {
@@ -15,7 +15,7 @@ if (!Number.isFinite(windowDays) || windowDays <= 0) {
 }
 
 const attribution = createAttribution({
-  store: new MemoryStore(),
+  store: new SqliteStore(process.env.ATTRIBUTION_DB_PATH ?? 'attribution.db'),
   secret,
   windowMs: windowDays * 24 * 60 * 60 * 1000,
 });
